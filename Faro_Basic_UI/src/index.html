@@ -267,20 +267,13 @@
         function displayHighlights(parsed) {
             const highlights = []
             
-            if (parsed.highlights) {
-                parsed.highlights.forEach(highlight => {
-                    switch (highlight.type) {
-                        case 'amount':
-                            highlights.push(`💰 Amount: $${highlight.value}`)
-                            break
-                        case 'date':
-                            highlights.push(`📅 Date: ${highlight.value}`)
-                            break
-                        case 'category':
-                            highlights.push(`🏷️ Category: ${highlight.value}`)
-                            break
-                    }
-                })
+            if (parsed.amount) {
+                highlights.push(`💰 Amount: $${parsed.amount}`)
+            }
+            
+            if (parsed.date) {
+                const date = new Date(parsed.date)
+                highlights.push(`📅 Date: ${date.toDateString()}`)
             }
             
             if (parsed.category && parsed.category !== 'Other') {

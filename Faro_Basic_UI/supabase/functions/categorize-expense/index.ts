@@ -100,7 +100,13 @@ function parseExpenseText(text: string) {
     { pattern: /\b(today|now)\b/gi, offset: 0 },
     { pattern: /\b(yesterday)\b/gi, offset: -1 },
     { pattern: /\b(tomorrow)\b/gi, offset: 1 },
-    { pattern: /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, day: true }
+    { pattern: /\b(monday)\b/gi, day: 1 },
+    { pattern: /\b(tuesday)\b/gi, day: 2 },
+    { pattern: /\b(wednesday)\b/gi, day: 3 },
+    { pattern: /\b(thursday)\b/gi, day: 4 },
+    { pattern: /\b(friday)\b/gi, day: 5 },
+    { pattern: /\b(saturday)\b/gi, day: 6 },
+    { pattern: /\b(sunday)\b/gi, day: 0 }
   ]
 
   for (const { pattern, offset, day } of datePatterns) {
@@ -109,6 +115,10 @@ function parseExpenseText(text: string) {
       let targetDate = new Date()
       if (offset !== undefined) {
         targetDate.setDate(targetDate.getDate() + offset)
+      } else if (day !== undefined) {
+        const currentDay = targetDate.getDay()
+        const daysUntil = (day - currentDay + 7) % 7
+        targetDate.setDate(targetDate.getDate() + (daysUntil || 7))
       }
       result.date = targetDate.toISOString()
       break
