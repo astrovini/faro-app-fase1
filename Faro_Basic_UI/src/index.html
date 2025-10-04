@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --border-color: #ddd;
+            --input-bg: #ffffff;
+            --card-bg: #f8f9fa;
+        }
+        
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --border-color: #444;
+            --input-bg: #2d2d2d;
+            --card-bg: #2d2d2d;
+        }
+        
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 500px; 
+            margin: 50px auto; 
+            padding: 20px; 
+            background: var(--bg-color);
+            color: var(--text-color);
+            transition: background 0.3s, color 0.3s;
+        }
+        .theme-toggle { 
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+            background: none; 
+            border: 1px solid var(--border-color); 
+            padding: 8px; 
+            border-radius: 4px; 
+            cursor: pointer;
+            color: var(--text-color);
+        }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select { 
+            width: 100%; 
+            padding: 8px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 4px; 
+            background: var(--input-bg);
+            color: var(--text-color);
+        }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        button:hover { background: #0056b3; }
+        .secondary-btn { background: #6c757d; }
+        .secondary-btn:hover { background: #545b62; }
+        .message { margin-top: 15px; padding: 10px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .user-info { background: var(--card-bg); padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+        .logout-btn { background: #dc3545; font-size: 12px; padding: 5px 10px; }
+        .auth-toggle { text-align: center; margin-top: 15px; }
+        .auth-toggle a { color: #007bff; cursor: pointer; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+    <div id="loginSection">
+        <div id="loginForm">
+            <h2>Login</h2>
+            <form id="loginFormElement">
+                <div class="form-group">
+                    <label for="loginEmail">Email:</label>
+                    <input type="email" id="loginEmail" name="email" required>
+                </div>
+                <button type="submit">Login</button>
+            </form>
+            <div class="auth-toggle">
+                Don't have an account? <a onclick="showRegister()">Register here</a>
+            </div>
+            <div id="loginMessage"></div>
+        </div>
+
+        <div id="registerForm" style="display: none;">
+            <h2>Register</h2>
+            <form id="registrationFormElement">
+                <div class="form-group">
+                    <label for="registerName">Name:</label>
+                    <input type="text" id="registerName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerEmail">Email:</label>
+                    <input type="email" id="registerEmail" name="email" required>
+                </div>
+                <button type="submit">Register</button>
+                <button type="button" class="secondary-btn" onclick="showLogin()">Back to Login</button>
+            </form>
+            <div id="registerMessage"></div>
+        </div>
+    </div>
+
+    <div id="appSection" style="display: none;">
+        <div class="user-info">
+            Logged in as: <span id="currentUser"></span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+
+        <h2>Add Expense</h2>
+        <form id="expenseForm">
+            <div class="form-group">
+                <label for="amount">Amount:</label>
+                <input type="number" id="amount" name="amount" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label for="description">Description (optional):</label>
+                <input type="text" id="description" name="description" placeholder="Eg: Spent $25 on lunch at McDonald's yesterday">
+                <div id="smartHighlights" style="margin-top: 5px; font-size: 12px; color: #666;"></div>
+            </div>
+            <button type="submit">Add Expense</button>
+        </form>
+        <div id="expenseMessage"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://bohsymjsconxdlfeaesc.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvaHN5bWpzY29ueGRsZmVhZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMzc2MTIsImV4cCI6MjA2NzYxMzYxMn0.W3E0lceiI-jegtP6dblMY-O9VOnv6yIHfYoHedb5Ep0'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+        let currentUser = null
+
+        window.onload = function() {
+            const savedUser = localStorage.getItem('currentUser')
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser)
+                showApp()
+            }
+            
+            const savedTheme = localStorage.getItem('theme') || 'light'
+            document.documentElement.setAttribute('data-theme', savedTheme)
+            updateThemeIcon(savedTheme)
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme')
+            const newTheme = current === 'dark' ? 'light' : 'dark'
+            document.documentElement.setAttribute('data-theme', newTheme)
+            localStorage.setItem('theme', newTheme)
+            updateThemeIcon(newTheme)
+        }
+
+        function updateThemeIcon(theme) {
+            document.querySelector('.theme-toggle').textContent = theme === 'dark' ? '☀️' : '🌙'
+        }
+
+        function showLogin() {
+            document.getElementById('loginForm').style.display = 'block'
+            document.getElementById('registerForm').style.display = 'none'
+        }
+
+        function showRegister() {
+            document.getElementById('loginForm').style.display = 'none'
+            document.getElementById('registerForm').style.display = 'block'
+        }
+
+        function showApp() {
+            document.getElementById('loginSection').style.display = 'none'
+            document.getElementById('appSection').style.display = 'block'
+            document.getElementById('currentUser').textContent = currentUser.email
+        }
+
+        function logout() {
+            localStorage.removeItem('currentUser')
+            currentUser = null
+            document.getElementById('loginSection').style.display = 'block'
+            document.getElementById('appSection').style.display = 'none'
+            showLogin()
+        }
+
+        document.getElementById('loginFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault()
+            
+            const email = document.getElementById('loginEmail').value
+            
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', email)
+                    .single()
+
+                if (error) throw new Error('User not found')
+
+                currentUser = data
+                localStorage.setItem('currentUser', JSON.stringify(currentUser))
+                showApp()
+            } catch (error) {
+                showMessage('Login failed: ' + error.message, 'error', 'loginMessage')
+            }
+        })
+
+        document.getElementById('registrationFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault()
+            
+            const formData = new FormData(e.target)
+            const userData = {
+                name: formData.get('name'),
+                email: formData.get('email')
+            }
+
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .insert([userData])
+                    .select()
+
+                if (error) throw error
+
+                showMessage('User registered successfully! You can now login.', 'success', 'registerMessage')
+                e.target.reset()
+                setTimeout(() => showLogin(), 2000)
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error', 'registerMessage')
+            }
+        })
+
+        let parseTimeout = null
+        let lastParsedData = null
+
+        document.getElementById('description').addEventListener('input', (e) => {
+            clearTimeout(parseTimeout)
+            parseTimeout = setTimeout(() => parseDescription(e.target.value), 500)
+        })
+
+        async function parseDescription(text) {
+            if (!text.trim()) {
+                document.getElementById('smartHighlights').innerHTML = ''
+                return
+            }
+
+            try {
+                const response = await fetch(`${supabaseUrl}/functions/v1/categorize-expense`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${supabaseKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ description: text })
+                })
+                
+                if (response.ok) {
+                    const parsed = await response.json()
+                    lastParsedData = parsed
+                    displayHighlights(parsed)
+                    
+                    const amountField = document.getElementById('amount')
+                    if (parsed.amount && !amountField.value) {
+                        amountField.value = parsed.amount
+                    }
+                }
+            } catch (error) {
+                console.log('Smart parsing failed:', error)
+            }
+        }
+
+        function displayHighlights(parsed) {
+            const highlights = []
+            
+            if (parsed.highlights) {
+                parsed.highlights.forEach(highlight => {
+                    switch (highlight.type) {
+                        case 'amount':
+                            highlights.push(`💰 Amount: $${highlight.value}`)
+                            break
+                        case 'date':
+                            highlights.push(`📅 Date: ${highlight.value}`)
+                            break
+                        case 'category':
+                            highlights.push(`🏷️ Category: ${highlight.value}`)
+                            break
+                    }
+                })
+            }
+            
+            if (parsed.category && parsed.category !== 'Other') {
+                highlights.push(`📂 Auto-categorized as: ${parsed.category}`)
+            }
+            
+            document.getElementById('smartHighlights').innerHTML = highlights.join(' • ')
+        }
+
+        document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+            e.preventDefault()
+            
+            const formData = new FormData(e.target)
+            const amount = parseFloat(formData.get('amount'))
+            const description = formData.get('description')
+            
+            try {
+                const response = await fetch(`${supabaseUrl}/functions/v1/categorize-expense`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${supabaseKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ amount, description })
+                })
+                
+                let parsed = { category: 'Other', description: description || 'Expense' }
+                if (response.ok) {
+                    parsed = await response.json()
+                }
+                
+                const expenseData = {
+                    user_id: currentUser.id,
+                    amount: amount,
+                    category: parsed.category,
+                    description: parsed.description,
+                    date: parsed.date || new Date().toISOString()
+                }
+
+                const { data, error } = await supabase
+                    .from('expenses')
+                    .insert([expenseData])
+
+                if (error) throw error
+
+                const message = parsed.generated 
+                    ? `Expense added! Auto-generated: ${parsed.description} (${parsed.category})`
+                    : `Expense added! Category: ${parsed.category}`
+                    
+                showMessage(message, 'success', 'expenseMessage')
+                e.target.reset()
+                document.getElementById('smartHighlights').innerHTML = ''
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error', 'expenseMessage')
+            }
+        })
+
+        function showMessage(text, type, elementId) {
+            const messageDiv = document.getElementById(elementId)
+            messageDiv.textContent = text
+            messageDiv.className = 'message ' + type
+        }
+    </script>
+</body>
+</html>
